@@ -40,6 +40,35 @@ func Path() (string, error) {
 	return gopath, nil
 }
 
+// ProjectPaths return paths to all projects
+func ProjectPaths() ([]string, error) {
+
+	gopath, err := Path()
+	if err != nil {
+		return []string{}, err
+	}
+
+	gopathSrc := filepath.Join(gopath, "src")
+
+	fileList := []string{}
+	err = filepath.Walk(gopathSrc, func(path string, fileInfo os.FileInfo, err error) error {
+
+		if gopathSrc != path {
+			if fileInfo.IsDir() {
+				fileList = append(fileList, path)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return []string{}, err
+	}
+
+	return fileList, nil
+}
+
 // Exists determine if there is an actual GOPATH
 func Exists() bool {
 
@@ -59,31 +88,22 @@ func Exists() bool {
 
 // CreateProject creates repository according to https://golang.org/doc/code.html
 // convention.
-// e.g. $GOPATH/src/<srcRepo>/<userFolder>/<projectFolder>
-// where:
-//   - srcRepo could be github.com, etc
-//   - userFolder is the name associated with the source repo
-//   - projectFolder is the name of folder containing the Go project
-func CreateProject(srcRepo string, userFolder string, projectFolder string) (string, error) {
+// e.g. $GOPATH/src/github.com/user/repo
+func CreateProject(packages ...string) (string, error) {
 	gopath, err := Path()
 	if err != nil {
 		return "", err
 	}
 
-	if !isValidName(srcRepo) {
-		return "", errors.New("Invalid source repo")
+	fullPath := []string{gopath, "src"}
+	for _, item := range packages {
+		if !isValidName(item) {
+			return "", fmt.Errorf("Invalid package name %s", item)
+		}
+		fullPath = append(fullPath, item)
 	}
 
-	if !isValidName(userFolder) {
-		return "", errors.New("Invalid user folder ")
-	}
-
-	if !isValidName(projectFolder) {
-		return "", errors.New("Invalid project folder")
-	}
-
-	fullPaths := []string{gopath, "src", srcRepo, projectFolder}
-	path := filepath.Join(fullPaths...)
+	path := filepath.Join(fullPath...)
 	if err := os.MkdirAll(path, 0777); err != nil {
 		return "", errors.New("Unable to create project")
 	}
@@ -91,8 +111,8 @@ func CreateProject(srcRepo string, userFolder string, projectFolder string) (str
 	return path, nil
 }
 
-// SearchSrc GOPATH for path that matches term
-func SearchSrc(term string) ([]string, error) {
+// Search GOPATH for path that matches term
+func Search(term string) ([]string, error) {
 
 	gopath, err := Path()
 	if err != nil {
@@ -104,8 +124,6 @@ func SearchSrc(term string) ([]string, error) {
 		fileList = append(fileList, path)
 		return nil
 	})
-
-	fmt.Println(gopath)
 
 	result := []string{}
 	for _, file := range fileList {

@@ -118,8 +118,78 @@ func TestCreateProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`Expected: not nil Got: %v`, err)
 	}
-	if path == "" {
-		t.Fatalf("Expected: no path Got %s", path)
+
+	expectedPath := filepath.Join(locationOfTestFixture(t), "src", "github.com", "user", "project")
+	if path != expectedPath {
+		t.Fatalf("Expected: %s Got: %s", expectedPath, path)
+	}
+
+	removeTestFixture(t)
+}
+
+func TestProjectPaths(t *testing.T) {
+
+	os.Setenv("GOPATH", locationOfTestFixture(t))
+	result, err := ProjectPaths()
+	if err != nil {
+		t.Fatalf("Expected: %v Got: %v", nil, err)
+	}
+
+	if len(result) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(result))
+	}
+
+	CreateProject("github.com")
+	result, err = ProjectPaths()
+	if err != nil {
+		t.Fatalf("Expected: %v Got: %v", nil, err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("Expected: 1 Got: %d", len(result))
+	}
+
+	CreateProject("github.com")
+	result, err = ProjectPaths()
+	if err != nil {
+		t.Fatalf("Expected: %v Got: %v", nil, err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("Expected: 1 Got: %d", len(result))
+	}
+
+	CreateProject("github.com", "user")
+	result, err = ProjectPaths()
+	if err != nil {
+		t.Fatalf("Expected: %v Got: %v", nil, err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("Expected: 2 Got: %d", len(result))
+	}
+	removeTestFixture(t)
+
+}
+
+func TestSearch(t *testing.T) {
+
+	os.Setenv("GOPATH", "")
+	_, err := Search("github.com")
+	if err == nil {
+		t.Fatalf("Expected: not %v Got: %v", nil, err)
+	}
+
+	os.Setenv("GOPATH", locationOfTestFixture(t))
+	CreateProject("github.com", "test", "test")
+	CreateProject("something")
+	CreateProject("bitbucket.org", "user", "test")
+
+	result, _ := Search("hello")
+	if len(result) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(result))
+	}
+
+	result, _ = Search("test")
+	if len(result) != 3 {
+		t.Fatalf("Expected: 3 Got: %d", len(result))
 	}
 
 	removeTestFixture(t)
