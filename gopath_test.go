@@ -36,11 +36,8 @@ func TestPath(t *testing.T) {
 	// Validate that if GOPATH is not set, the API return error and empty string
 	os.Setenv("GOPATH", "")
 	path, err := Path()
-	if err == nil {
-		t.Fatalf("Expected: <gopath not set> got: %v", err)
-	}
-	if path != "" {
-		t.Fatalf("Expected: <empty> got: %s", path)
+	if err == nil && len(path) == 0 {
+		t.Fatalf(`Expected: "" not <nil> path got: %v %v`, path, err)
 	}
 
 	// Validate that if GOPATH is set, the API returns path value
@@ -87,7 +84,7 @@ func TestExist(t *testing.T) {
 	createTestFixture(t)
 	os.Setenv("GOPATH", locationOfTestFixture(t))
 	if result := Exists(); result != true {
-		t.Fatalf("Expected: true Got: %t", result)
+		t.Fatalf("Expected: %t Got: %t", true, result)
 	}
 	removeTestFixture(t)
 }
@@ -97,14 +94,14 @@ func TestCreateProject(t *testing.T) {
 	// Verify that no project is created when
 	// GOPATH is not set
 	os.Setenv("GOPATH", "")
-	path, err := CreateProject("test", "test", "test")
-	if path != "" && err != nil {
-		t.Fatalf(`Expected: path created Got: %v %v`, path, err)
+	_, err := CreateProject("test", "test", "test")
+	if err != nil {
+		t.Fatalf(`Expected: path created Got: %v`, err)
 	}
 
 	// Invalid user name
 	os.Setenv("GOPATH", locationOfTestFixture(t))
-	path, err = CreateProject("github.com", "user/", "project")
+	path, err := CreateProject("github.com", "user/", "project")
 	if err == nil {
 		t.Fatalf(`Expected: not nil Got: %v`, err)
 	}
