@@ -19,7 +19,6 @@ limitations under the License.
 package gopath
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,75 +46,30 @@ func isValidName(argName string) bool {
 }
 
 // Path returns the location of $GOPATH
-func Path() (string, error) {
+func Path() string {
+	goPath := os.Getenv("GOPATH")
 
-	gopath := os.Getenv("GOPATH")
-
-	if len(gopath) == 0 {
-		return "", errors.New("gopath not set")
+	if _, err := os.Stat(goPath); os.IsNotExist(err) {
+		return ""
 	}
 
-	return gopath, nil
-}
-
-// ProjectPaths return paths to all projects
-func ProjectPaths() ([]string, error) {
-
-	gopath, err := Path()
-	if err != nil {
-		return []string{}, err
-	}
-
-	gopathSrc := filepath.Join(gopath, "src")
-
-	fileList := []string{}
-	err = filepath.Walk(gopathSrc, func(path string, fileInfo os.FileInfo, err error) error {
-
-		if gopathSrc != path {
-			if fileInfo.IsDir() {
-				fileList = append(fileList, path)
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return []string{}, err
-	}
-
-	return fileList, nil
-}
-
-// Exists determine if there is an actual GOPATH
-func Exists() bool {
-
-	path, err := Path()
-	if err != nil {
-		return false
-	}
-
-	if _, err = os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-		return true
-	}
-	return true
+	return goPath
 }
 
 // CreateProject creates repository according to https://golang.org/doc/code.html
 // convention.
 // e.g. $GOPATH/src/github.com/user/repo
 func CreateProject(packages ...string) (string, error) {
-	gopath, err := Path()
-	if err != nil {
-		return "", err
+
+	goPath := os.Getenv("GOPATH")
+	if len(goPath) == 0 {
+		return "", fmt.Errorf("GOPATH is not set")
 	}
 
-	fullPath := []string{gopath, "src"}
+	fullPath := []string{goPath, "src"}
 	for _, item := range packages {
 		if !isValidName(item) {
+			fullPath = []string{}
 			return "", fmt.Errorf("Invalid package name %s", item)
 		}
 		fullPath = append(fullPath, item)
@@ -123,32 +77,59 @@ func CreateProject(packages ...string) (string, error) {
 
 	path := filepath.Join(fullPath...)
 	if err := os.MkdirAll(path, 0777); err != nil {
-		return "", errors.New("Unable to create project")
+		return "", fmt.Errorf("Unable to create project")
 	}
 
 	return path, nil
 }
 
-// Search GOPATH for path that matches term
-func Search(term string) ([]string, error) {
+// ProjectPaths return paths to all projects in src folder
+func ProjectPaths() []string {
 
-	gopath, err := Path()
-	if err != nil {
-		return []string{}, err
+	goPath := Path()
+	if len(goPath) == 0 {
+		return []string{}
 	}
 
+	gopathSrc := filepath.Join(goPath, "src")
+
 	fileList := []string{}
-	err = filepath.Walk(gopath, func(path string, f os.FileInfo, err error) error {
-		fileList = append(fileList, path)
+	err := filepath.Walk(gopathSrc, func(path string, fileInfo os.FileInfo, err error) error {
+		if gopathSrc != path {
+			if fileInfo.IsDir() {
+				fileList = append(fileList, path)
+			}
+		}
 		return nil
 	})
 
-	result := []string{}
-	for _, file := range fileList {
-		if strings.Contains(file, term) {
-			result = append(result, file)
-		}
+	if err != nil {
+		return []string{}
 	}
 
-	return result, nil
+	return fileList
+}
+
+// Search GOPATH for path that matches term
+func Search(term string) []string {
+
+	goPath := Path()
+	if len(goPath) == 0 {
+		return []string{}
+	}
+
+	result := []string{}
+	err := filepath.Walk(goPath, func(path string, f os.FileInfo, err error) error {
+		if strings.Contains(path, term) {
+			fmt.Println(path)
+			result = append(result, path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return []string{}
+	}
+
+	return result
 }

@@ -19,6 +19,7 @@ package gopath
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -33,8 +34,8 @@ func locationOfTestFixture(t *testing.T) string {
 }
 
 func createTestFixture(t *testing.T) {
-
 	path := locationOfTestFixture(t)
+	t.Logf("Creating test fixture: %s", path)
 	if err := os.MkdirAll(path, 0777); err != nil {
 		t.Errorf("Error unable to create test-fixtures: %v", err)
 	}
@@ -43,35 +44,20 @@ func createTestFixture(t *testing.T) {
 func removeTestFixture(t *testing.T) {
 
 	path := locationOfTestFixture(t)
+	t.Logf("Removing test fixture: %s", path)
 	if err := os.RemoveAll(path); err != nil {
 		t.Errorf("Error unable to delete test-fixtures: %v", err)
 	}
 }
 
-// Tests
-func TestPath(t *testing.T) {
-
-	// Validate that if GOPATH is not set, the API return error and empty string
-	os.Setenv("GOPATH", "")
-	path, err := Path()
-	if err == nil {
-		t.Fatalf(`Expected: <nil> path got: %v`, err)
+func projectExists(t *testing.T, path string) bool {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false
 	}
-	if len(path) != 0 {
-		t.Fatalf(`Expected: 0 path got: %d`, len(path))
-	}
-
-	// Validate that if GOPATH is set, the API returns path value
-	os.Setenv("GOPATH", locationOfTestFixture(t))
-	path, err = Path()
-	if err != nil {
-		t.Fatalf("Error expected: <nil> got: %v", err)
-	}
-	if path != locationOfTestFixture(t) {
-		t.Fatalf("Expected: %s Got: %s", locationOfTestFixture(t), path)
-	}
+	return true
 }
 
+// Tests
 func TestIsValidName(t *testing.T) {
 
 	testData := []struct {
@@ -95,96 +81,104 @@ func TestIsValidName(t *testing.T) {
 
 }
 
-func TestExist(t *testing.T) {
+func TestPath(t *testing.T) {
 
+	// Validate that if GOPATH is not set, the API return error and empty string
 	os.Setenv("GOPATH", "")
-	if result := Exists(); result != false {
-		t.Fatalf("Expected: false Got: %t", result)
+	goPath := Path()
+	if len(goPath) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(goPath))
 	}
 
+	// Validate non-existence GOPATH
+	expected := locationOfTestFixture(t)
+	os.Setenv("GOPATH", expected)
+	goPath = Path()
+	if strings.Compare(expected, goPath) == 0 {
+		t.Fatalf("Expected: %s Got: %s", expected, goPath)
+	}
+
+	// Validate an actual GOPATH
+	expected = locationOfTestFixture(t)
 	createTestFixture(t)
-	os.Setenv("GOPATH", locationOfTestFixture(t))
-	if result := Exists(); result != true {
-		t.Fatalf("Expected: %t Got: %t", true, result)
+	os.Setenv("GOPATH", expected)
+	goPath = Path()
+	if strings.Compare(expected, goPath) != 0 {
+		t.Fatalf("Expected: %s Got: %s", expected, goPath)
 	}
 	removeTestFixture(t)
 }
 
 func TestCreateProject(t *testing.T) {
 
-	// Verify that no project is created when
-	// GOPATH is not set
+	packages := []string{"github.com", "test", "test"}
+
+	// GOPATH unset
+	t.Log("GOPATH is not set")
 	os.Setenv("GOPATH", "")
-	path, err := CreateProject("test", "test", "test")
-	if len(path) != 0 {
-		t.Fatalf("Expected: 0 created Got: %d", len(path))
-	}
+	project, err := CreateProject(packages...)
 	if err == nil {
-		t.Fatalf("Expected: nil created Got: %v", err)
+		t.Fatalf("Expected: Valid GOPATH Got: %v", err)
+	}
+	if len(project) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(project))
 	}
 
-	// Invalid user name
-	os.Setenv("GOPATH", locationOfTestFixture(t))
-	path, err = CreateProject("github.com", "user/", "project")
+	// GOPATH set
+	goPath := locationOfTestFixture(t)
+	os.Setenv("GOPATH", goPath)
+	t.Logf("GOPATH set to %s", goPath)
+
+	// Invalid package name
+	invalidPackage := "package/"
+	t.Logf("Invalid package name: %s", invalidPackage)
+	project, err = CreateProject(invalidPackage, packages[1], packages[2])
 	if err == nil {
-		t.Fatalf(`Expected: nil Got: %v`, err)
+		t.Fatalf("Expected: no error Got: %v", err)
 	}
-	if len(path) != 0 {
-		t.Fatalf(`Expected: 0 Got: %v`, len(path))
+	if len(project) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(project))
 	}
 
-	// Valid packages
-	os.Setenv("GOPATH", locationOfTestFixture(t))
-	path, err = CreateProject("github.com", "user", "project")
+	// Valid package
+	expected := filepath.Join(goPath, "src", packages[0], packages[1], packages[2])
+	t.Logf("Valid package names %s", expected)
+	project, err = CreateProject(packages...)
 	if err != nil {
-		t.Fatalf(`Expected: not nil Got: %v`, err)
+		t.Fatalf("Expected: no error Got: %v", err)
 	}
-
-	expectedPath := filepath.Join(locationOfTestFixture(t), "src", "github.com", "user", "project")
-	if path != expectedPath {
-		t.Fatalf("Expected: %s Got: %s", expectedPath, path)
+	if strings.Compare(expected, project) != 0 {
+		t.Fatalf("Expected: %s Got: %s", expected, project)
 	}
-
+	if !projectExists(t, project) {
+		t.Fatal("Expected: true Got: false")
+	}
 	removeTestFixture(t)
+
 }
 
 func TestProjectPaths(t *testing.T) {
 
-	os.Setenv("GOPATH", locationOfTestFixture(t))
-	result, err := ProjectPaths()
-	if err != nil {
-		t.Fatalf("Expected: %v Got: %v", nil, err)
+	os.Setenv("GOPATH", "")
+	projects := ProjectPaths()
+	if len(projects) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(projects))
 	}
 
-	if len(result) != 0 {
-		t.Fatalf("Expected: 0 Got: %d", len(result))
+	goPath := locationOfTestFixture(t)
+	os.Setenv("GOPATH", goPath)
+	if len(projects) != 0 {
+		t.Fatalf("Expected: 0 Got: %d", len(projects))
 	}
 
-	CreateProject("github.com")
-	result, err = ProjectPaths()
-	if err != nil {
-		t.Fatalf("Expected: %v Got: %v", nil, err)
+	CreateProject("github.com", "test", "test")
+	CreateProject("bitbucket.org", "test", "test")
+	paths := ProjectPaths()
+	if !projectExists(t, paths[0]) {
+		t.Fatalf("Path[0] does not exists")
 	}
-	if len(result) != 1 {
-		t.Fatalf("Expected: 1 Got: %d", len(result))
-	}
-
-	CreateProject("github.com")
-	result, err = ProjectPaths()
-	if err != nil {
-		t.Fatalf("Expected: %v Got: %v", nil, err)
-	}
-	if len(result) != 1 {
-		t.Fatalf("Expected: 1 Got: %d", len(result))
-	}
-
-	CreateProject("github.com", "user")
-	result, err = ProjectPaths()
-	if err != nil {
-		t.Fatalf("Expected: %v Got: %v", nil, err)
-	}
-	if len(result) != 2 {
-		t.Fatalf("Expected: 2 Got: %d", len(result))
+	if !projectExists(t, paths[1]) {
+		t.Fatalf("Path[1] does not exists")
 	}
 	removeTestFixture(t)
 
@@ -193,25 +187,20 @@ func TestProjectPaths(t *testing.T) {
 func TestSearch(t *testing.T) {
 
 	os.Setenv("GOPATH", "")
-	_, err := Search("github.com")
-	if err == nil {
-		t.Fatalf("Expected: not %v Got: %v", nil, err)
-	}
-
-	os.Setenv("GOPATH", locationOfTestFixture(t))
-	CreateProject("github.com", "test", "test")
-	CreateProject("something")
-	CreateProject("bitbucket.org", "user", "test")
-
-	result, _ := Search("hello")
+	result := Search("test")
 	if len(result) != 0 {
 		t.Fatalf("Expected: 0 Got: %d", len(result))
 	}
 
-	result, _ = Search("test")
-	if len(result) != 3 {
-		t.Fatalf("Expected: 3 Got: %d", len(result))
+	goPath := locationOfTestFixture(t)
+	os.Setenv("GOPATH", goPath)
+	CreateProject("github.com", "test1", "test")
+	CreateProject("bitbucket.org", "test", "test")
+	CreateProject("something", "test1", "test1")
+	result = Search("test1")
+
+	if len(result) != 4 {
+		t.Fatalf("Expected: 4 Got: %d", len(result))
 	}
 
-	removeTestFixture(t)
 }
