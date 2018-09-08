@@ -111,12 +111,12 @@ func TestPath(t *testing.T) {
 
 func TestCreateProject(t *testing.T) {
 
-	packages := []string{"github.com", "test", "test"}
+	packages := []string{"package", "subpackage"}
 
 	// GOPATH unset
 	t.Log("GOPATH is not set")
 	os.Setenv("GOPATH", "")
-	project, err := CreateProject(packages...)
+	project, err := CreateProject("github.com", "test", "test", packages...)
 	if err == nil {
 		t.Fatalf("Expected: Valid GOPATH Got: %v", err)
 	}
@@ -131,8 +131,7 @@ func TestCreateProject(t *testing.T) {
 
 	// Invalid package name
 	invalidPackage := "package/"
-	t.Logf("Invalid package name: %s", invalidPackage)
-	project, err = CreateProject(invalidPackage, packages[1], packages[2])
+	project, err = CreateProject("github.com", "test", "test", invalidPackage, packages[1])
 	if err == nil {
 		t.Fatalf("Expected: no error Got: %v", err)
 	}
@@ -141,9 +140,9 @@ func TestCreateProject(t *testing.T) {
 	}
 
 	// Valid package
-	expected := filepath.Join(goPath, "src", packages[0], packages[1], packages[2])
+	expected := filepath.Join(goPath, "src", "github.com", "test", "test", packages[0], packages[1])
 	t.Logf("Valid package names %s", expected)
-	project, err = CreateProject(packages...)
+	project, err = CreateProject("github.com", "test", "test", packages...)
 	if err != nil {
 		t.Fatalf("Expected: no error Got: %v", err)
 	}

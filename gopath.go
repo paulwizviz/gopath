@@ -58,15 +58,27 @@ func Path() string {
 
 // CreateProject creates repository according to https://golang.org/doc/code.html
 // convention.
-// e.g. $GOPATH/src/github.com/user/repo
-func CreateProject(packages ...string) (string, error) {
+// e.g. $GOPATH/src/github/user/repo/package
+func CreateProject(hostsite string, author string, project string, packages ...string) (string, error) {
 
 	goPath := os.Getenv("GOPATH")
 	if len(goPath) == 0 {
 		return "", fmt.Errorf("GOPATH is not set")
 	}
 
-	fullPath := []string{goPath, "src"}
+	if hostsite == "" {
+		return "", fmt.Errorf("Host site not specified")
+	}
+
+	if author == "" {
+		return "", fmt.Errorf("Author not specified")
+	}
+
+	if project == "" {
+		return "", fmt.Errorf("Project not specified")
+	}
+
+	fullPath := []string{goPath, "src", hostsite, author, project}
 	for _, item := range packages {
 		if !isValidName(item) {
 			fullPath = []string{}
